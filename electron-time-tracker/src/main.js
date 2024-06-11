@@ -16,23 +16,32 @@ app.use(Toast, {
   maxToasts: 5,
   newestOnTop: true
 })
-app.mount('#app')
 
 function googleSignIn() {
-  const provider = new GoogleAuthProvider();
-  signInWithPopup(auth, provider)
-    .then((result) => {
-      // handle successful sign-in
-      localStorage.setItem('uid', result.user.uid);
-      SuccessToast(`Signed in as ${result.user.email}`);
-    })
-    .catch((error) => {
-      // handle errors
-      googleSignIn();
-      console.error(error);
-      ErrorToast(error);
-    });
+  return new Promise((resolve, reject) => {
+    const provider = new GoogleAuthProvider();
+    signInWithPopup(auth, provider)
+      .then((result) => {
+        // handle successful sign-in
+        localStorage.setItem('uid', result.user.uid);
+        SuccessToast(`Signed in as ${result.user.email}`);
+        resolve(result);
+      })
+      .catch((error) => {
+        // handle errors
+        console.error(error);
+        ErrorToast(error);
+        reject(error);
+      });
+  });
 }
 
-googleSignIn();
+googleSignIn().then((result) => {
+  // Do something after sign-in, such as mounting the app
+  app.mount('#app');
+}).catch((error) => {
+  // Handle any errors here
+});
+
+
 

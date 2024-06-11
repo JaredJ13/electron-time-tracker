@@ -5,18 +5,15 @@ import { collection, query, where, getDocs, getDoc, setDoc, addDoc, updateDoc, d
 
 
 // Groups
-// export async function writeNewProduct(name, price, measurement, description, org) {
-//     const docRef = await addDoc(collection(db, 'products'), {
-//         name: name,
-//         price: price,
-//         measurement: measurement,
-//         description: description,
-//         dateAdded: new Date(),
-//         dateDeactivated: null,
-//         org: org
-//     })
-//     return docRef.id;
-// }
+export async function writeNewGroup(uid, name, createdDate) {
+    const docRef = await addDoc(collection(db, 'groups'), {
+        uid: uid,
+        name: name,
+        createdDate: createdDate,
+        active: true
+    })
+    return docRef.id;
+}
 
 // export async function editProduct(name, price, measurement, description, docID) {
 //     let updateRef = await updateDoc(doc(db, `products/${docID}`), {
@@ -29,17 +26,17 @@ import { collection, query, where, getDocs, getDoc, setDoc, addDoc, updateDoc, d
 //     return updateRef;
 // }
 
-// export async function readAllProducts(org) {
-//     const q = query(collection(db, "products"), where("dateDeactivated", "==", null), where("org", "==", org), orderBy("name"))
-//     const querySnapshot = await getDocs(q)
-//     let products = [];
-//     querySnapshot.forEach((doc) => {
-//         let productData = doc.data()
-//         productData['docID'] = doc.id
-//         products.push(productData)
-//     });
-//     return products;
-// }
+export async function readAllGroups(uid) {
+    const q = query(collection(db, "groups"), where("uid", "==", uid), orderBy("name"))
+    const querySnapshot = await getDocs(q)
+    let groups = [];
+    querySnapshot.forEach((doc) => {
+        let groupData = doc.data()
+        groupData['docID'] = doc.id
+        groups.push(groupData)
+    });
+    return groups;
+}
 
 // export async function deactivateProduct(docID) {
 //     let deactivateRef = await updateDoc(doc(db, `products/${docID}`), {
@@ -64,7 +61,8 @@ export async function writeNewTime(uid, groupID, startTime) {
         uid: uid,
         startYear: startYear,
         startMonth: startMonth,
-        startDay: startDay
+        startDay: startDay,
+        description: ''
     })
     return docRef.id;
 }

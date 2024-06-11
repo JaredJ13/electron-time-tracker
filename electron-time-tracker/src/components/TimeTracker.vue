@@ -1,32 +1,60 @@
 <script setup>
 import Summary from './Summary.vue';
-import { EllipsisHorizontalIcon, PlusCircleIcon } from '@heroicons/vue/20/solid';
+import { EllipsisHorizontalIcon, PlusCircleIcon, MinusCircleIcon } from '@heroicons/vue/20/solid';
 import { SuccessToast } from './toasts/SuccessToast';
 import { ErrorToast } from './toasts/ErrorToast';
-import { writeNewTime, readAllTimes } from '../firebase/crudFunctions'
-import { onMounted, reactive } from 'vue';
+import { writeNewTime, readAllTimes, writeNewGroup, readAllGroups } from '../firebase/crudFunctions'
+import { onMounted, reactive, computed } from 'vue';
 import moment from 'moment'
+import lodash from 'lodash'
 
-
+// state
 const state = reactive({
-    allTimes: []
+    allTimes: [],
+    allGroups: [],
+    newGroupName: null,
+    newGroupNameError: false,
+});
+
+// computed 
+const activeGroups = computed(() => {
+    let activeGroups = [];
+    let allGroupsCopy = lodash.cloneDeep(state.allGroups);
+
+    activeGroups = allGroupsCopy.filter(group => group.active === true);
+
+    return activeGroups;
+});
+
+const inactiveGroups = computed(() => {
+    let inactiveGroups = [];
+    let allGroupsCopy = lodash.cloneDeep(state.allGroups);
+
+    inactiveGroups = allGroupsCopy.filter(group => group.active === false);
+
+    return inactiveGroups;
 });
 
 onMounted(async () => {
     // get all the times for the logged in user for today
     try {
         let allTimes = await readAllTimes(localStorage.uid, new Date());
+        let allGroups = await readAllGroups(localStorage.uid);
         state.allTimes = allTimes;
-        console.log(allTimes)
+        state.allGroups = allGroups;
     }
     catch (err) {
         console.log(err);
-        ErrorToast('An error occurred while trying to load the the times for the current user.');
+        ErrorToast('An error occurred while trying to load user data.');
     }
 });
 
 
 async function handleStartTime(groupID) {
+    const currentDate = new Date();
+    const startYear = currentDate.getFullYear();
+    const startMonth = currentDate.getMonth() + 1;
+    const startDay = currentDate.getDate();
 
     if (groupID) {
         // start time for specific group
@@ -34,7 +62,19 @@ async function handleStartTime(groupID) {
     } else {
         // start general time
         try {
-            await writeNewTime(localStorage.uid, groupID, new Date());
+            await writeNewTime(localStorage.uid, groupID, currentDate);
+            state.allTimes.push(
+                {
+                    startTime: currentDate,
+                    endTime: null,
+                    groupID: groupID,
+                    uid: localStorage.uid,
+                    startYear: startYear,
+                    startMonth: startMonth,
+                    startDay: startDay,
+                    description: ''
+                }
+            )
             SuccessToast(`${groupID ? `New task started for ${groupID}` : `New general task started`}`);
         }
         catch (err) {
@@ -63,6 +103,37 @@ function calculateTime(time) {
     return formattedDifference;
 }
 
+async function handleAddGroup() {
+    // validate
+    if (!state.newGroupName) {
+        state.newGroupNameError = true
+    }
+    else {
+        state.newGroupNameError = false
+
+        // write new group to db and add to local data
+        try {
+            const currentDate = new Date();
+            const newGroupDocID = await writeNewGroup(localStorage.uid, state.newGroupName, currentDate);
+            state.allGroups.push(
+                {
+                    uid: localStorage.uid,
+                    name: state.newGroupName,
+                    createdDate: currentDate,
+                    docID: newGroupDocID,
+                    active: true
+                }
+            )
+            SuccessToast(`New time group created: ${state.newGroupName}`);
+        }
+        catch (err) {
+            console.log(err);
+            ErrorToast('An error occurred while trying to create a new time group');
+        }
+    }
+
+}
+
 </script>
 
 <template>
@@ -80,23 +151,15 @@ function calculateTime(time) {
                                 </div>
                             </a>
                         </li>
-                        <li>
+                        <li v-for="group in state.allGroups" :key="group.docID">
                             <a class="flex justify-between items-center p-2">
                                 <div>
-                                    Misc
+                                    {{ group.name }}
                                 </div>
                                 <EllipsisHorizontalIcon class="w-6 hover:text-emerald-400" />
                             </a>
                         </li>
-                        <li>
-                            <a class="flex justify-between items-center p-2">
-                                <div>
-                                    Wilard Dev
-                                </div>
-                                <EllipsisHorizontalIcon class="w-6 hover:text-emerald-400" />
-                            </a>
-                        </li>
-                        <li>
+                        <li onclick="modal_manageGroups.showModal()">
                             <a class="flex justify-center p-2 group">
                                 Add Group
                                 <PlusCircleIcon class="w-6 group-hover:text-emerald-500" />
@@ -139,29 +202,56 @@ function calculateTime(time) {
                     </div>
                     <hr />
                 </li>
-                <!-- <li>
-                    <hr />
-                    <div class="timeline-middle">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                            class="h-5 w-5 hover:fill-yellow-400 hover:cursor-pointer transition">
-                            <path fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                                clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                    <div class="timeline-end mb-3 sm:text-sm md:text-md lg:text-lg">
-                        <time class="italic">4:31 PM to 5:40 PM | <span class="font-bold text-emerald-500">1 hr 9
-                                mins (1.15hrs)</span></time>
-                        <div class="font-black">Wilard Dev</div>
-                        iMac is a family of all-in-one Mac desktop computers designed and built by Apple Inc. It has
-                        been the primary part of Apple's consumer desktop offerings since its debut in August 1998, and
-                        has evolved through seven distinct forms
-                    </div>
-                    <hr />
-                </li> -->
             </ul>
             <div class="border-b border-black h-2 w-full my-5"></div>
         </div>
+
+        <!-- manage groups modal -->
+        <dialog id="modal_manageGroups" class="modal">
+            <div class="modal-box">
+                <h3 class="font-bold text-lg">Manage Time Groups</h3>
+                <div class="divider divider-start">Add New Group</div>
+                <div class="flex items-center">
+                    <input v-model.trim="state.newGroupName" type="text" maxlength="20" placeholder="eg: Mockup Design"
+                        :class="`input input-bordered w-full mr-2 ${state.newGroupNameError ? 'input-error' : ''}`" />
+                    <PlusCircleIcon @click="handleAddGroup()"
+                        class="w-8 h-8 hover:text-emerald-500 hover:cursor-pointer transition" />
+                </div>
+                <div class="divider divider-start">My Groups</div>
+                <div class="collapse bg-gray-100 mb-2">
+                    <input type="checkbox" value="true" />
+                    <div class="collapse-title text-sm">
+                        Active Groups
+                    </div>
+                    <div class="collapse-content">
+                        <ul>
+                            <li v-for="group in activeGroups" :key="group.docID" class="flex items-center">{{ group.name }}
+                                <MinusCircleIcon
+                                    class="w-5 h-5 ml-1 hover:text-red-500 hover:cursor-pointer hover:transition" />
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="collapse bg-gray-100">
+                    <input type="checkbox" />
+                    <div class="collapse-title text-sm">
+                        Deactivated Groups
+                    </div>
+                    <div class="collapse-content">
+                        <ul>
+                            <li v-for="group in inactiveGroups" :key="group.docID" class="flex items-center">{{ group.name
+                            }}
+                                <PlusCircleIcon
+                                    class="w-5 h-5 ml-1 hover:text-emerald-500 hover:cursor-pointer hover:transition" />
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop">
+                <button>close</button>
+            </form>
+        </dialog>
 
         <!-- tasks summary -->
         <div>
