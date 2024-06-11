@@ -49,7 +49,7 @@ export async function readAllGroups(uid) {
 
 
 // Times
-export async function writeNewTime(uid, groupID, startTime) {
+export async function writeNewTime(uid, groupDocID, startTime) {
     const startYear = startTime.getFullYear();
     const startMonth = startTime.getMonth() + 1;
     const startDay = startTime.getDate();
@@ -57,7 +57,7 @@ export async function writeNewTime(uid, groupID, startTime) {
     const docRef = await addDoc(collection(db, 'tasks'), {
         startTime: startTime,
         endTime: null,
-        groupID: groupID,
+        groupDocID: groupDocID,
         uid: uid,
         startYear: startYear,
         startMonth: startMonth,
@@ -67,11 +67,8 @@ export async function writeNewTime(uid, groupID, startTime) {
     return docRef.id;
 }
 
-export async function editProduct(name, price, measurement, description, docID) {
-    let updateRef = await updateDoc(doc(db, `products/${docID}`), {
-        name: name,
-        price: price,
-        measurement: measurement,
+export async function editTime(description, docID) {
+    let updateRef = await updateDoc(doc(db, `tasks/${docID}`), {
         description: description
     });
 

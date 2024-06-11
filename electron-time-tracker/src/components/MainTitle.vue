@@ -3,6 +3,7 @@ import { auth } from '../firebase/firebaseConfig';
 import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { SuccessToast } from './toasts/SuccessToast';
 import { ErrorToast } from './toasts/ErrorToast';
+import { ArrowLeftEndOnRectangleIcon } from '@heroicons/vue/20/solid';
 
 
 async function handleSignOut() {
@@ -29,9 +30,11 @@ async function handleSignOut() {
 </script>
 
 <template>
-    <div class="mt-3">
-        <h1 class="font-lobster text-5xl text-center">Saily</h1>
-        <p class="font-robotoCondensed italic mt-2 text-center">Track and Summarize your Daily Tasks</p>
-        <p @click="handleSignOut()">Sign Out</p>
+    <div class="mt-3 relative">
+        <div class="text-center">
+            <h1 class="font-lobster text-5xl">Saily</h1>
+            <p class="font-robotoCondensed italic mt-2">Track and Summarize your Daily Tasks</p>
+        </div>
+        <ArrowLeftEndOnRectangleIcon class="absolute right-10 top-5 cursor-pointer w-5 h-5" @click="handleSignOut()" />
     </div>
 </template>

@@ -36,6 +36,11 @@
                         <div class="stat-value text-emerald-500 text-center">5.23</div>
                         <div class="stat-desc text-center">7 hrs 59 mins</div>
                     </div>
+                    <div class="stat">
+                        <div class="stat-title">OT Hours</div>
+                        <div class="stat-value text-emerald-500 text-center">0.5</div>
+                        <div class="stat-desc text-center">30 mins</div>
+                    </div>
                 </div>
             </div>
         </div>

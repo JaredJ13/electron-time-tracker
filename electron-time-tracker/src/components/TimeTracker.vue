@@ -3,7 +3,7 @@ import Summary from './Summary.vue';
 import { EllipsisHorizontalIcon, PlusCircleIcon, MinusCircleIcon } from '@heroicons/vue/20/solid';
 import { SuccessToast } from './toasts/SuccessToast';
 import { ErrorToast } from './toasts/ErrorToast';
-import { writeNewTime, readAllTimes, writeNewGroup, readAllGroups } from '../firebase/crudFunctions'
+import { writeNewTime, readAllTimes, writeNewGroup, readAllGroups, editTime } from '../firebase/crudFunctions'
 import { onMounted, reactive, computed } from 'vue';
 import moment from 'moment'
 import lodash from 'lodash'
@@ -14,6 +14,7 @@ const state = reactive({
     allGroups: [],
     newGroupName: null,
     newGroupNameError: false,
+    newTimeDescription: ''
 });
 
 // computed 
@@ -35,6 +36,21 @@ const inactiveGroups = computed(() => {
     return inactiveGroups;
 });
 
+const onGoingTimes = computed(() => {
+    let onGoingTimes = [];
+    onGoingTimes = lodash.cloneDeep(state.allTimes).filter(time => time.endTime === null);
+    onGoingTimes.forEach((time) => {
+        // get its group name
+        if (time.groupDocID) {
+            time['groupName'] = state.allGroups.find(group => group.docID === time.groupDocID);
+        } else {
+            time['groupName'] = 'General';
+        }
+    });
+
+    return onGoingTimes;
+});
+
 onMounted(async () => {
     // get all the times for the logged in user for today
     try {
@@ -50,37 +66,32 @@ onMounted(async () => {
 });
 
 
-async function handleStartTime(groupID) {
+async function handleStartTime(groupDocID) {
     const currentDate = new Date();
     const startYear = currentDate.getFullYear();
     const startMonth = currentDate.getMonth() + 1;
     const startDay = currentDate.getDate();
+    const groupName = state.allGroups.find(group => group.docID === groupDocID)?.name;
 
-    if (groupID) {
-        // start time for specific group
-        SuccessToast('Test');
-    } else {
-        // start general time
-        try {
-            await writeNewTime(localStorage.uid, groupID, currentDate);
-            state.allTimes.push(
-                {
-                    startTime: currentDate,
-                    endTime: null,
-                    groupID: groupID,
-                    uid: localStorage.uid,
-                    startYear: startYear,
-                    startMonth: startMonth,
-                    startDay: startDay,
-                    description: ''
-                }
-            )
-            SuccessToast(`${groupID ? `New task started for ${groupID}` : `New general task started`}`);
-        }
-        catch (err) {
-            console.log(err);
-            ErrorToast('An error occurred while trying to start the time');
-        }
+    try {
+        await writeNewTime(localStorage.uid, groupDocID, currentDate);
+        state.allTimes.push(
+            {
+                startTime: currentDate,
+                endTime: null,
+                groupDocID: groupDocID,
+                uid: localStorage.uid,
+                startYear: startYear,
+                startMonth: startMonth,
+                startDay: startDay,
+                description: ''
+            }
+        )
+        SuccessToast(`${groupName ? `New task started for ${groupName}` : `New general task started`}`);
+    }
+    catch (err) {
+        console.log(err);
+        ErrorToast('An error occurred while trying to start the time');
     }
 }
 
@@ -134,6 +145,32 @@ async function handleAddGroup() {
 
 }
 
+function getGroupName(groupDocID) {
+    const groupName = state.allGroups.find(group => group.docID === groupDocID)?.name;
+    return groupName ? groupName : 'General';
+}
+
+async function handleEditTimeDescription(time) {
+    time.editDescription = false;
+
+    // check that it changed
+    if (time.description !== state.newTimeDescription) {
+        try {
+            await editTime(state.newTimeDescription, time.docID);
+            // update local data
+            let allTimesCopy = lodash.cloneDeep(state.allTimes);
+            let index = allTimesCopy.findIndex((x) => x.docID === time.docID);
+            allTimesCopy[index].description = state.newTimeDescription;
+            state.allTimes = allTimesCopy;
+            SuccessToast(`Time edited successfully`);
+        }
+        catch (err) {
+            console.log(err);
+            ErrorToast('An error occurred while trying to edit the time');
+        }
+    }
+}
+
 </script>
 
 <template>
@@ -151,12 +188,12 @@ async function handleAddGroup() {
                                 </div>
                             </a>
                         </li>
-                        <li v-for="group in state.allGroups" :key="group.docID">
+                        <li @click="handleStartTime(group.docID)" v-for="group in state.allGroups" :key="group.docID">
                             <a class="flex justify-between items-center p-2">
                                 <div>
                                     {{ group.name }}
                                 </div>
-                                <EllipsisHorizontalIcon class="w-6 hover:text-emerald-400" />
+                                <!-- <EllipsisHorizontalIcon class="w-6 hover:text-emerald-400" /> -->
                             </a>
                         </li>
                         <li onclick="modal_manageGroups.showModal()">
@@ -167,7 +204,7 @@ async function handleAddGroup() {
                         </li>
                     </ul>
                 </details>
-                <div class="h-full border-l border-black mx-6"></div>
+                <div class="h-full border-l border-gray-300 mx-6"></div>
                 <details class="dropdown">
                     <summary class="m-1 btn w-40 font-bold">End Task</summary>
                     <ul class="p-2 shadow menu dropdown-content z-[1] bg-base-100 rounded-box w-52">
@@ -192,18 +229,26 @@ async function handleAddGroup() {
                         </svg>
                     </div>
                     <div
-                        :class="`${index % 2 ? 'timeline-end' : 'timeline-start'} md:text-end mb-3 sm:text-sm md:text-md lg:text-lg`">
+                        :class="`${index % 2 ? 'timeline-end ml-8' : 'timeline-start md:text-start'} mb-3 sm:text-sm md:text-md lg:text-lg w-60`">
                         <time class="italic">{{ moment(time.startTime).format('LT') }} to {{ time.endTime ?
-                            moment(time.endTime).format('LT')
-                            : 'ongoing' }} |
-                            <span class="font-bold text-emerald-500">{{ calculateTime(time) }}</span></time>
-                        <div class="font-black">General</div>
-                        Morning meeting
+                            moment(time.endTime).format('LT') : 'ongoing' }} |
+                            <span class="font-bold text-emerald-500">{{ calculateTime(time) }}</span>
+                        </time>
+                        <div class="font-black">{{ getGroupName(time.groupDocID) }}</div>
+                        <div class="w-full overflow-hidden">
+                            <p class="break-words"
+                                @click="time.editDescription = true; state.newTimeDescription = time.description"
+                                v-if="!time.editDescription">
+                                {{ time.description == '' ? 'Enter task description' : time.description }}
+                            </p>
+                            <textarea @blur="handleEditTimeDescription(time)" v-else v-model.trim="state.newTimeDescription"
+                                class="textarea textarea-ghost w-full" placeholder="Enter task description"></textarea>
+                        </div>
                     </div>
                     <hr />
                 </li>
             </ul>
-            <div class="border-b border-black h-2 w-full my-5"></div>
+            <div class="divider my-5"></div>
         </div>
 
         <!-- manage groups modal -->
