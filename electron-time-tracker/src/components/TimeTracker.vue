@@ -98,20 +98,104 @@ const totalHours = computed(() => {
 });
 
 const groupTotals = computed(() => {
-    let totals = {};
+    let totals = [];
 
     let allTimesCopy = lodash.cloneDeep(state.allTimes);
 
     // get General group totals
     let generalGroupTimes = allTimesCopy.filter((x) => x.groupDocID === null);
-    let generalGroupTotals = { totalTasks: 0, totalHours: 0, hours: 0, minutes: 0 };
-    generalGroupTimes.forEach((time) => {
+    let generalGroupTotals = { totalTasks: 0, totalHours: 0, hours: 0, minutes: 0, name: 'General', description: '' };
 
+    generalGroupTimes.forEach((time) => {
+        if (time.description.trim() !== '') {
+            generalGroupTotals.description += `- ${time.description}\n`;
+        }
+
+        generalGroupTotals.totalTasks += 1;
+
+        const { startTime, endTime } = time;
+
+        if (startTime && endTime) {
+            const start = new Date(startTime);
+            const end = new Date(endTime);
+
+            // Calculate the difference in milliseconds
+            const diff = end - start;
+
+            // Convert milliseconds to hours
+            const hours = diff / (1000 * 60 * 60);
+
+            // Add to the total
+            generalGroupTotals.totalHours += hours;
+        } else if (startTime && !endTime) {
+            const start = new Date(startTime);
+            const now = new Date();
+
+            // Calculate the difference in milliseconds
+            const diff = now - start;
+
+            // Convert milliseconds to hours
+            const hours = diff / (1000 * 60 * 60);
+
+            // Add to the total
+            generalGroupTotals.totalHours += hours;
+        }
     });
 
-    // state.allGroups.forEach((group)=>{
-    //     if(group.)
-    // });
+    generalGroupTotals.hours = Math.floor(generalGroupTotals.totalHours);
+    generalGroupTotals.minutes = (generalGroupTotals.totalHours - generalGroupTotals.hours) * 60;
+
+    totals.push(generalGroupTotals);
+
+    state.allGroups.forEach((group) => {
+        let groupTimes = allTimesCopy.filter((x) => x.groupDocID === group.docID);
+        let groupTotals = { totalTasks: 0, totalHours: 0, hours: 0, minutes: 0, name: '', description: '' };
+
+        groupTimes.forEach((time) => {
+            if (time.description.trim() !== '') {
+                groupTotals.description += `- ${time.description}\n`;
+            }
+            groupTotals.totalTasks += 1;
+
+            const { startTime, endTime } = time;
+
+            if (startTime && endTime) {
+                const start = new Date(startTime);
+                const end = new Date(endTime);
+
+                // Calculate the difference in milliseconds
+                const diff = end - start;
+
+                // Convert milliseconds to hours
+                const hours = diff / (1000 * 60 * 60);
+
+                // Add to the total
+                groupTotals.totalHours += hours;
+            } else if (startTime && !endTime) {
+                const start = new Date(startTime);
+                const now = new Date();
+
+                // Calculate the difference in milliseconds
+                const diff = now - start;
+
+                // Convert milliseconds to hours
+                const hours = diff / (1000 * 60 * 60);
+
+                // Add to the total
+                groupTotals.totalHours += hours;
+            }
+        });
+
+        groupTotals.hours = Math.floor(groupTotals.totalHours);
+        groupTotals.minutes = (groupTotals.totalHours - groupTotals.hours) * 60;
+        groupTotals.name = getGroupName(group.docID);
+
+        if (groupTotals.totalTasks !== 0) {
+            totals.push(groupTotals);
+        }
+    });
+
+    return totals
 });
 
 // const dateSortedTimes = computed(() => {
@@ -474,8 +558,8 @@ function handleCheckForChanges(time) {
                     <hr />
                 </li>
             </ul>
-            <div class="divider my-5"></div>
         </div>
+        <div class="divider my-5 px-10"></div>
 
         <!-- manage groups modal -->
         <dialog id="modal_manageGroups" class="modal">
@@ -526,7 +610,7 @@ function handleCheckForChanges(time) {
 
         <!-- tasks summary -->
         <div>
-            <Summary :totalHours="totalHours" :totalTasks="state.allTimes.length" />
+            <Summary :totalHours="totalHours" :totalTasks="state.allTimes.length" :groupTotals="groupTotals" />
         </div>
     </div>
 </template>
