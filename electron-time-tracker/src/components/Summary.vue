@@ -1,9 +1,25 @@
 <script setup>
+import { defineProps, reactive, computed } from 'vue';
+
+const props = defineProps(['totalHours', 'totalTasks']);
+
+const state = reactive({
+
+});
+
+// computed
+const formattedTotalHours = computed(() => {
+    let totalHours = Number(props.totalHours);
+    let hours = Math.floor(totalHours);
+    let minutes = (totalHours - hours) * 60;
+
+    return `${hours}hrs ${minutes.toFixed(0)}mins`;
+});
 
 </script>
 
 <template>
-    <div class="font-robotoCondensed">
+    <div class="font-robotoCondensed mb-6">
         <h2 class="font-bold text-center text-xl md:text-2xl">Summary</h2>
 
         <!-- Total Stats -->
@@ -11,13 +27,13 @@
             <div class="stats stats-vertical sm:stats-horizontal shadow mt-5">
                 <div class="stat">
                     <div class="stat-title">Total Tasks</div>
-                    <div class="stat-value text-center">12</div>
+                    <div class="stat-value text-center">{{ totalTasks }}</div>
                     <!-- <div class="stat-desc">↗︎ 400 (22%)</div> -->
                 </div>
                 <div class="stat">
                     <div class="stat-title">Total Hours</div>
-                    <div class="stat-value text-emerald-500 text-center">7.98</div>
-                    <div class="stat-desc text-center">7 hrs 59 mins</div>
+                    <div class="stat-value text-emerald-500 text-center">{{ totalHours }}</div>
+                    <div class="stat-desc text-center">{{ formattedTotalHours }}</div>
                 </div>
             </div>
         </div>
@@ -28,18 +44,14 @@
                 <div class="stats stats-vertical sm:stats-horizontal shadow mt-1">
                     <div class="stat">
                         <div class="stat-title">Total Tasks</div>
-                        <div class="stat-value text-center">7</div>
+                        <div class="stat-value text-center">{{ totalTasks }}</div>
+
                         <!-- <div class="stat-desc">↗︎ 400 (22%)</div> -->
                     </div>
                     <div class="stat">
                         <div class="stat-title">Total Hours</div>
-                        <div class="stat-value text-emerald-500 text-center">5.23</div>
-                        <div class="stat-desc text-center">7 hrs 59 mins</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-title">OT Hours</div>
-                        <div class="stat-value text-emerald-500 text-center">0.5</div>
-                        <div class="stat-desc text-center">30 mins</div>
+                        <div class="stat-value text-emerald-500 text-center">{{ totalHours }}</div>
+                        <div class="stat-desc text-center"></div>
                     </div>
                 </div>
             </div>

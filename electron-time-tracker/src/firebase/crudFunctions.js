@@ -1,5 +1,5 @@
 import { auth, db, storage } from './firebaseConfig'
-import { collection, query, where, getDocs, getDoc, setDoc, addDoc, updateDoc, doc, limit, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, getDoc, setDoc, addDoc, updateDoc, doc, limit, orderBy, deleteDoc } from "firebase/firestore";
 
 
 
@@ -62,14 +62,53 @@ export async function writeNewTime(uid, groupDocID, startTime) {
         startYear: startYear,
         startMonth: startMonth,
         startDay: startDay,
+        endDay: null,
+        endMonth: null,
+        endYear: null,
         description: ''
     })
     return docRef.id;
 }
 
-export async function editTime(description, docID) {
+export async function editTime(description, timeRange, docID) {
+    const startYear = timeRange.startTime.getFullYear();
+    const startMonth = timeRange.startTime.getMonth() + 1;
+    const startDay = timeRange.startTime.getDate();
+    let endYear = null;
+    let endMonth = null;
+    let endDay = null;
+
+    if (timeRange.endTime) {
+        endYear = timeRange.endTime.getFullYear();
+        endMonth = timeRange.endTime.getMonth() + 1;
+        endDay = timeRange.endTime.getDate();
+    }
+
     let updateRef = await updateDoc(doc(db, `tasks/${docID}`), {
-        description: description
+        description: description,
+        startTime: timeRange.startTime,
+        startDay: startDay,
+        startMonth: startMonth,
+        startYear: startYear,
+        endTime: timeRange.endTime,
+        endDay: endDay,
+        endMonth: endMonth,
+        endYear: endYear
+    });
+
+    return updateRef;
+}
+
+export async function endTime(endTime, docID) {
+    const endYear = endTime.getFullYear();
+    const endMonth = endTime.getMonth() + 1;
+    const endDay = endTime.getDate();
+
+    let updateRef = await updateDoc(doc(db, `tasks/${docID}`), {
+        endTime: endTime,
+        endDay: endDay,
+        endMonth: endMonth,
+        endYear: endYear
     });
 
     return updateRef;
@@ -93,10 +132,8 @@ export async function readAllTimes(uid, currentDay) {
     return times;
 }
 
-export async function deactivateProduct(docID) {
-    let deactivateRef = await updateDoc(doc(db, `products/${docID}`), {
-        dateDeactivated: new Date()
-    });
+export async function deleteTime(docID) {
+    let deactivateRef = await deleteDoc(doc(db, `tasks/${docID}`));
 
     return deactivateRef;
 }

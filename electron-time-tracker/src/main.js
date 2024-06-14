@@ -7,6 +7,9 @@ import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { auth } from './firebase/firebaseConfig';
 import { SuccessToast } from './components/toasts/SuccessToast';
 import { ErrorToast } from './components/toasts/ErrorToast';
+import VueDatePicker from '@vuepic/vue-datepicker';
+import '@vuepic/vue-datepicker/dist/main.css'
+
 
 
 const app = createApp(App)
@@ -16,6 +19,8 @@ app.use(Toast, {
   maxToasts: 5,
   newestOnTop: true
 })
+
+app.component('VueDatePicker', VueDatePicker);
 
 function googleSignIn() {
   return new Promise((resolve, reject) => {

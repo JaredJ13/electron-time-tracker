@@ -1,12 +1,14 @@
 <script setup>
 import Summary from './Summary.vue';
-import { EllipsisHorizontalIcon, PlusCircleIcon, MinusCircleIcon } from '@heroicons/vue/20/solid';
+import { EllipsisHorizontalIcon, PlusCircleIcon, MinusCircleIcon, PencilIcon } from '@heroicons/vue/20/solid';
 import { SuccessToast } from './toasts/SuccessToast';
 import { ErrorToast } from './toasts/ErrorToast';
-import { writeNewTime, readAllTimes, writeNewGroup, readAllGroups, editTime } from '../firebase/crudFunctions'
-import { onMounted, reactive, computed } from 'vue';
+import { writeNewTime, readAllTimes, writeNewGroup, readAllGroups, editTime, endTime, deleteTime } from '../firebase/crudFunctions'
+import { onMounted, reactive, computed, watch } from 'vue';
 import moment from 'moment'
 import lodash from 'lodash'
+import VueDatePicker from '@vuepic/vue-datepicker';
+import '@vuepic/vue-datepicker/dist/main.css'
 
 // state
 const state = reactive({
@@ -14,7 +16,15 @@ const state = reactive({
     allGroups: [],
     newGroupName: null,
     newGroupNameError: false,
-    newTimeDescription: ''
+    newTimeDescription: '',
+    newStartTime: {
+        hours: new Date(),
+        minutes: new Date(),
+    },
+    newEndTime: {
+        hours: new Date(),
+        minutes: new Date(),
+    }
 });
 
 // computed 
@@ -42,7 +52,7 @@ const onGoingTimes = computed(() => {
     onGoingTimes.forEach((time) => {
         // get its group name
         if (time.groupDocID) {
-            time['groupName'] = state.allGroups.find(group => group.docID === time.groupDocID);
+            time['groupName'] = state.allGroups.find(group => group.docID === time.groupDocID)?.name;
         } else {
             time['groupName'] = 'General';
         }
@@ -50,6 +60,65 @@ const onGoingTimes = computed(() => {
 
     return onGoingTimes;
 });
+
+const totalHours = computed(() => {
+    let total = 0;
+
+    state.allTimes.forEach((time) => {
+        const { startTime, endTime } = time;
+
+        if (startTime && endTime) {
+            const start = new Date(startTime);
+            const end = new Date(endTime);
+
+            // Calculate the difference in milliseconds
+            const diff = end - start;
+
+            // Convert milliseconds to hours
+            const hours = diff / (1000 * 60 * 60);
+
+            // Add to the total
+            total += hours;
+        } else if (startTime && !endTime) {
+            const start = new Date(startTime);
+            const now = new Date();
+
+            // Calculate the difference in milliseconds
+            const diff = now - start;
+
+            // Convert milliseconds to hours
+            const hours = diff / (1000 * 60 * 60);
+
+            // Add to the total
+            total += hours;
+        }
+    });
+    // Return the total rounded to two decimal places
+    return total.toFixed(2);
+});
+
+const groupTotals = computed(() => {
+    let totals = {};
+
+    let allTimesCopy = lodash.cloneDeep(state.allTimes);
+
+    // get General group totals
+    let generalGroupTimes = allTimesCopy.filter((x) => x.groupDocID === null);
+    let generalGroupTotals = { totalTasks: 0, totalHours: 0, hours: 0, minutes: 0 };
+    generalGroupTimes.forEach((time) => {
+
+    });
+
+    // state.allGroups.forEach((group)=>{
+    //     if(group.)
+    // });
+});
+
+// const dateSortedTimes = computed(() => {
+//     let timesCopy = [];
+//     timesCopy = lodash.cloneDeep(state.allTimes).sort((a, b) => a.startTime - b.startTime);
+//     return timesCopy;
+// });
 
 onMounted(async () => {
     // get all the times for the logged in user for today
@@ -73,25 +142,75 @@ async function handleStartTime(groupDocID) {
     const startDay = currentDate.getDate();
     const groupName = state.allGroups.find(group => group.docID === groupDocID)?.name;
 
+    let ongoingTimeExists = false;
+    // check if another time is still ongoing
+    if (state.allTimes.find(x => x.endTime === null)) {
+        ongoingTimeExists = true
+    }
+
+    if (!ongoingTimeExists) {
+        try {
+            let timeDocID = await writeNewTime(localStorage.uid, groupDocID, currentDate);
+            state.allTimes.push(
+                {
+                    startTime: currentDate,
+                    endTime: null,
+                    groupDocID: groupDocID,
+                    uid: localStorage.uid,
+                    startYear: startYear,
+                    startMonth: startMonth,
+                    startDay: startDay,
+                    endDay: null,
+                    endMonth: null,
+                    endYear: null,
+                    description: '',
+                    docID: timeDocID
+                }
+            )
+            SuccessToast(`${groupName ? `New task started for ${groupName}` : `New general task started`}`);
+        }
+        catch (err) {
+            console.log(err);
+            ErrorToast('An error occurred while trying to start the time');
+        }
+    }
+    else {
+        ErrorToast('You must end your current task to start a new one');
+    }
+}
+
+async function handleEndTime(time) {
     try {
-        await writeNewTime(localStorage.uid, groupDocID, currentDate);
-        state.allTimes.push(
-            {
-                startTime: currentDate,
-                endTime: null,
-                groupDocID: groupDocID,
-                uid: localStorage.uid,
-                startYear: startYear,
-                startMonth: startMonth,
-                startDay: startDay,
-                description: ''
-            }
-        )
-        SuccessToast(`${groupName ? `New task started for ${groupName}` : `New general task started`}`);
+        let currentDate = new Date();
+        const endYear = currentDate.getFullYear();
+        const endMonth = currentDate.getMonth() + 1;
+        const endDay = currentDate.getDate();
+
+        await endTime(currentDate, time.docID);
+        // update local data
+        let allTimesCopy = lodash.cloneDeep(state.allTimes);
+        let index = allTimesCopy.findIndex((x) => x.docID === time.docID);
+
+        allTimesCopy[index].endTime = currentDate;
+        allTimesCopy[index].endDay = endDay;
+        allTimesCopy[index].endMonth = endMonth;
+        allTimesCopy[index].endYear = endYear;
+
+        if (state.newEndTime) {
+            state.newEndTime.hours = allTimesCopy[index].endTime.getHours();
+            state.newEndTime.minutes = allTimesCopy[index].endTime.getMinutes();
+        }
+        else {
+            state.newEndTime = { hours: new Date().getHours(), minutes: new Date().getMinutes };
+        }
+
+        state.allTimes = allTimesCopy;
+
+        SuccessToast(`Task ended for ${time.groupName}`);
     }
     catch (err) {
         console.log(err);
-        ErrorToast('An error occurred while trying to start the time');
+        ErrorToast(`An error occurred while trying to end the task for ${time.groupName}`);
     }
 }
 
@@ -111,7 +230,7 @@ function calculateTime(time) {
         formattedDifference += `${minutesDifference % 60}mins`;
     }
 
-    return formattedDifference;
+    return formattedDifference === '' ? '0mins' : formattedDifference;
 }
 
 async function handleAddGroup() {
@@ -150,24 +269,116 @@ function getGroupName(groupDocID) {
     return groupName ? groupName : 'General';
 }
 
-async function handleEditTimeDescription(time) {
-    time.editDescription = false;
+async function handleEditTime(time, timeRange) {
+    try {
+        const startYear = timeRange.startTime.getFullYear();
+        const startMonth = timeRange.startTime.getMonth() + 1;
+        const startDay = timeRange.startTime.getDate();
+        let endYear = null;
+        let endMonth = null;
+        let endDay = null;
 
-    // check that it changed
-    if (time.description !== state.newTimeDescription) {
-        try {
-            await editTime(state.newTimeDescription, time.docID);
-            // update local data
-            let allTimesCopy = lodash.cloneDeep(state.allTimes);
-            let index = allTimesCopy.findIndex((x) => x.docID === time.docID);
-            allTimesCopy[index].description = state.newTimeDescription;
-            state.allTimes = allTimesCopy;
-            SuccessToast(`Time edited successfully`);
+        if (timeRange.endTime) {
+            endYear = timeRange.endTime.getFullYear();
+            endMonth = timeRange.endTime.getMonth() + 1;
+            endDay = timeRange.endTime.getDate();
         }
-        catch (err) {
-            console.log(err);
-            ErrorToast('An error occurred while trying to edit the time');
+
+        await editTime(state.newTimeDescription, timeRange, time.docID);
+        time.editTime = false;
+        // update local data
+        let allTimesCopy = lodash.cloneDeep(state.allTimes);
+        let index = allTimesCopy.findIndex((x) => x.docID === time.docID);
+        allTimesCopy[index].description = state.newTimeDescription;
+        allTimesCopy[index].startTime = timeRange.startTime,
+            allTimesCopy[index].startDay = startDay,
+            allTimesCopy[index].startMonth = startMonth,
+            allTimesCopy[index].startYear = startYear,
+            allTimesCopy[index].endTime = timeRange.endTime,
+            allTimesCopy[index].endDay = endDay,
+            allTimesCopy[index].endMonth = endMonth,
+            allTimesCopy[index].endYear = endYear
+        state.allTimes = allTimesCopy;
+        SuccessToast(`Task edited successfully`);
+    }
+    catch (err) {
+        console.log(err);
+        ErrorToast('An error occurred while trying to edit the task');
+    }
+}
+
+async function handleDeleteTask(docID) {
+    try {
+        await deleteTime(docID);
+        // update local data
+        let allTimesCopy = lodash.cloneDeep(state.allTimes);
+        let index = allTimesCopy.findIndex((x) => x.docID === docID);
+
+        allTimesCopy.splice(index, 1);
+
+        state.allTimes = allTimesCopy;
+
+        SuccessToast(`Task deleted`);
+    }
+    catch (err) {
+        console.log(err);
+        ErrorToast(`An error occurred while trying to delete the task`);
+    }
+}
+
+function handleSwitchToEditTime(time) {
+    time.editTime = !time.editTime;
+    if (time.editTime) {
+        // edit mode
+        state.newTimeDescription = time.description;
+        state.newStartTime.hours = time.startTime.getHours();
+        state.newStartTime.minutes = time.startTime.getMinutes();
+        if (time.endTime) {
+            state.newEndTime.hours = time.endTime.getHours();
+            state.newEndTime.minutes = time.endTime.getMinutes();
         }
+        else {
+            if (state.newEndTime) {
+                state.newEndTime.hours = new Date();
+                state.newEndTime.minutes = new Date();
+            }
+            else {
+                state.newEndTime = { hours: new Date(), minutes: new Date() };
+            }
+        }
+    }
+}
+
+function handleCheckForChanges(time) {
+    let endTimeDifferent = false;
+    if (time.endTime && state.newEndTime) {
+        if (time.endTime.getHours() !== state.newEndTime.hours || time.endTime.getMinutes() !== state.newEndTime.minutes) {
+            endTimeDifferent = true;
+        }
+    }
+    else if (time.endTime && !state.newEndTime) {
+        endTimeDifferent = true;
+    }
+    else {
+        if (typeof state.newEndTime.hours !== 'object' || typeof state.newEndTime.minutes !== 'object') {
+            endTimeDifferent = true;
+        }
+    }
+
+    if (time.description !== state.newTimeDescription || time.startTime.getHours() !== state.newStartTime.hours || time.startTime.getMinutes() !== state.newStartTime.minutes || endTimeDifferent) {
+        let start = new Date(new Date().setHours(state.newStartTime.hours, state.newStartTime.minutes));
+        let end = null;
+
+        if (state.newEndTime && typeof state.newEndTime.hours !== 'object' && endTimeDifferent && !state.endTime) {
+            end = new Date(new Date().setHours(state.newEndTime.hours, state.newEndTime.minutes));
+        }
+        else if (state.newEndTime && endTimeDifferent && !state.endTime) {
+            end = new Date(new Date().setHours(state.newEndTime.hours.getHours(), state.newEndTime.minutes.getMinutes()));
+        }
+
+        const timeRange = { startTime: start, endTime: end };
+
+        handleEditTime(time, timeRange);
     }
 }
 
@@ -178,9 +389,9 @@ async function handleEditTimeDescription(time) {
         <!-- start and stop buttons -->
         <div>
             <div class="flex justify-center items-center h-12">
-                <details class="dropdown">
-                    <summary class="m-1 btn w-40 font-bold">Start Task</summary>
-                    <ul class="p-2 shadow menu dropdown-content z-[1] bg-base-100 rounded-box w-52">
+                <div class="dropdown">
+                    <div tabindex="0" role="button" class="m-1 btn w-40 font-bold">Start Task</div>
+                    <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
                         <li @click="handleStartTime(null)">
                             <a class="flex justify-between items-center p-2">
                                 <div>
@@ -203,15 +414,16 @@ async function handleEditTimeDescription(time) {
                             </a>
                         </li>
                     </ul>
-                </details>
+                </div>
                 <div class="h-full border-l border-gray-300 mx-6"></div>
-                <details class="dropdown">
-                    <summary class="m-1 btn w-40 font-bold">End Task</summary>
-                    <ul class="p-2 shadow menu dropdown-content z-[1] bg-base-100 rounded-box w-52">
-                        <li><a>Group 1</a></li>
-                        <li><a>Group 2</a></li>
+                <div class="dropdown">
+                    <div tabindex="0" role="button" class="m-1 btn w-40 font-bold">End Task</div>
+                    <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                        <li v-for="time in onGoingTimes" :key="time.docID" @click="handleEndTime(time)">
+                            <a>{{ time.groupName }}</a>
+                        </li>
                     </ul>
-                </details>
+                </div>
             </div>
         </div>
 
@@ -221,28 +433,42 @@ async function handleEditTimeDescription(time) {
                 class="timeline timeline-snap-icon max-md:timeline-compact timeline-vertical">
                 <li v-for="(time, index) in state.allTimes" :key="time.docID">
                     <div class="timeline-middle">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                            class="h-5 w-5 hover:fill-yellow-400 hover:cursor-pointer transition">
-                            <path fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                                clip-rule="evenodd" />
-                        </svg>
+                        <PencilIcon @click="handleSwitchToEditTime(time)"
+                            class="w-4 h-4 hover:text-yellow-400 hover:cursor-pointer transition" />
                     </div>
                     <div
-                        :class="`${index % 2 ? 'timeline-end ml-8' : 'timeline-start md:text-start'} mb-3 sm:text-sm md:text-md lg:text-lg w-60`">
-                        <time class="italic">{{ moment(time.startTime).format('LT') }} to {{ time.endTime ?
-                            moment(time.endTime).format('LT') : 'ongoing' }} |
+                        :class="`${index % 2 ? 'timeline-end ml-8' : 'timeline-start md:text-start'} mb-3 sm:text-sm md:text-md lg:text-lg ${!time.editTime ? 'w-40 md:w-60' : 'w-60 md:w-72'}`">
+                        <time v-if="!time.editTime" class="italic">{{
+                            moment(time.startTime).format('LT') }} to {{
+        time.endTime ?
+        moment(time.endTime).format('LT') : 'ongoing' }} |
                             <span class="font-bold text-emerald-500">{{ calculateTime(time) }}</span>
                         </time>
+                        <div v-else class="flex">
+                            <div>
+                                <VueDatePicker v-model="state.newStartTime" time-picker :is-24="false"
+                                    placeholder="Start Time" :clearable="false" />
+                            </div>
+                            <div>
+                                <VueDatePicker v-model="state.newEndTime" time-picker :is-24="false"
+                                    placeholder="End Time" />
+                            </div>
+                        </div>
                         <div class="font-black">{{ getGroupName(time.groupDocID) }}</div>
                         <div class="w-full overflow-hidden">
-                            <p class="break-words"
-                                @click="time.editDescription = true; state.newTimeDescription = time.description"
-                                v-if="!time.editDescription">
+                            <p class="break-words" v-if="!time.editTime">
                                 {{ time.description == '' ? 'Enter task description' : time.description }}
                             </p>
-                            <textarea @blur="handleEditTimeDescription(time)" v-else v-model.trim="state.newTimeDescription"
-                                class="textarea textarea-ghost w-full" placeholder="Enter task description"></textarea>
+                            <textarea v-else v-model.trim="state.newTimeDescription" class="textarea textarea-ghost w-full"
+                                placeholder="Enter task description"></textarea>
+                        </div>
+                        <div v-if="time.editTime" class="flex">
+                            <button @click="handleDeleteTask(time.docID)"
+                                class="btn btn-xs mr-1 hover:bg-red-500 hover:border-red-500 transition">Delete
+                                Task</button>
+                            <button @click="handleCheckForChanges(time)"
+                                class="btn btn-xs bg-emerald-300 border-emerald-300 hover:bg-emerald-400 hover:border-emerald-400 transition">Save
+                                Changes</button>
                         </div>
                     </div>
                     <hr />
@@ -300,7 +526,7 @@ async function handleEditTimeDescription(time) {
 
         <!-- tasks summary -->
         <div>
-            <Summary />
+            <Summary :totalHours="totalHours" :totalTasks="state.allTimes.length" />
         </div>
     </div>
 </template>
